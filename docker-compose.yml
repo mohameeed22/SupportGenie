@@ -1,0 +1,53 @@
+version: '3.9'
+
+services:
+  supportgenie-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: supportgenie-bot
+    
+    environment:
+      # Required variables — set these via .env file or docker run
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      
+      # Optional variables with defaults
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-support@novabuy.store}
+      SUPPORT_HOURS: ${SUPPORT_HOURS:-Monday-Friday, 9am-6pm EST}
+      
+      # Admin & Rate Limiting
+      ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
+      RATE_LIMIT_MAX_MESSAGES: ${RATE_LIMIT_MAX_MESSAGES:-10}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      
+      # Database
+      SUPPORTGENIE_DB_PATH: /data/supportgenie.db
+    
+    volumes:
+      # Persistent database storage
+      - supportgenie-db:/data
+    
+    # Keep container running even if process exits
+    restart: unless-stopped
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          memory: 256M
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  supportgenie-db:
+    driver: local

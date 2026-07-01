@@ -1,0 +1,48 @@
+# .dockerignore — Exclude files from Docker build context
+
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+.vscode
+.venv
+venv/
+ENV/
+env/
+
+.pytest_cache
+.coverage
+htmlcov/
+
+# Development/IDE files
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Plan and session files (not needed in container)
+plan.md
+.copilot/
+
+# Keep the database and logs if they exist
+# These will be stored in volumes anyway
+# supportgenie.db  # Can rebuild
