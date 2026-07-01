@@ -38,8 +38,10 @@ async def human_escalation(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if update.callback_query:
         query = update.callback_query
         await query.answer()
+        await query.message.chat.send_action("typing")
         await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
     else:
+        await update.message.chat.send_action("typing")
         await update.message.reply_text(text, parse_mode="Markdown", reply_markup=keyboard)
 
     # Log the escalation for monitoring
@@ -58,6 +60,7 @@ async def products_overview(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     query = update.callback_query
     await query.answer()
+    await query.message.chat.send_action("typing")
 
     in_stock = [p for p in PRODUCTS if p["in_stock"]]
     out_of_stock = [p for p in PRODUCTS if not p["in_stock"]]

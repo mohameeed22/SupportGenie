@@ -141,8 +141,46 @@ def _build_product_list() -> str:
     return "\n".join(lines)
 
 
-# ── System Prompt ──────────────────────────────────────────────
-SYSTEM_PROMPT: str = f"""You are Genie, a friendly and knowledgeable customer support assistant for NovaBuy — a premium online electronics and accessories store. You work as part of the SupportGenie bot.
+import re
+
+
+def detect_language(text: str) -> str:
+    lowered = text.lower()
+    if re.search(r"[\u0400-\u04ff]", text):
+        return "Russian"
+    if re.search(r"[\u0600-\u06ff]", text):
+        return "Arabic"
+    if re.search(r"[\u4e00-\u9fff]", text):
+        return "Chinese"
+    if re.search(r"[\u3040-\u30ff]", text):
+        return "Japanese"
+    if re.search(r"[\u0900-\u097f]", text):
+        return "Hindi"
+    if any(token in lowered for token in ["hola", "gracias", "por favor", "pedido", "devolución"]):
+        return "Spanish"
+    if any(token in lowered for token in ["bonjour", "merci", "commande", "retour"]):
+        return "French"
+    if any(token in lowered for token in ["hallo", "danke", "bestellung", "rückgabe"]):
+        return "German"
+    if any(token in lowered for token in ["olá", "obrigado", "pedido", "devolução"]):
+        return "Portuguese"
+    return "English"
+
+
+def build_system_prompt(
+    *,
+    preferred_language: str | None = None,
+    user_name: str | None = None,
+    extra_context: str | None = None,
+) -> str:
+    language_line = (
+        f"- Reply in {preferred_language} and mirror the user's language naturally."
+        if preferred_language
+        else "- Reply in the same language the user used."
+    )
+    name_line = f"- The user's name is {user_name}." if user_name else ""
+    context_line = f"\n\nEXTRA CONTEXT:\n{extra_context}" if extra_context else ""
+    return f"""You are Genie, a friendly and knowledgeable customer support assistant for NovaBuy — a premium online electronics and accessories store. You work as part of the SupportGenie bot.
 
 YOUR PERSONALITY:
 - Warm, helpful, and professional
@@ -166,10 +204,17 @@ YOUR RULES:
 5. If a topic is completely unrelated to NovaBuy (e.g., general knowledge, other stores), politely decline and offer to connect them with support.
 6. Keep responses concise — ideally under 200 words for Telegram readability.
 7. Always format prices with a $ sign and 2 decimal places.
+8. {language_line}
+{name_line}
 
 ESCALATION (recommend "Talk to Human" for these):
 - Billing disputes or unexpected charges
 - Account security or hacking concerns
 - Legal complaints
 - Customer expressing high frustration after multiple failed attempts
+{context_line}
 """
+
+
+# ── System Prompt ──────────────────────────────────────────────
+SYSTEM_PROMPT: str = build_system_prompt()

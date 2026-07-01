@@ -20,7 +20,6 @@ WAITING_FOR_ORDER_ID = 1
 # Path to mock orders
 _ORDERS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "mock_orders.json")
 
-# Load orders into memory once at startup
 def _load_orders() -> dict[str, dict]:
     try:
         with open(_ORDERS_PATH, "r", encoding="utf-8") as f:
@@ -31,6 +30,20 @@ def _load_orders() -> dict[str, dict]:
         return {}
 
 ORDERS: dict[str, dict] = _load_orders()
+
+
+def normalize_order_id(raw: str) -> str:
+    value = raw.strip().upper()
+    if not value.startswith("NB-"):
+        if value.startswith("NB"):
+            value = "NB-" + value[2:]
+        elif value.isdigit():
+            value = "NB-" + value
+    return value
+
+
+def lookup_order(order_id: str) -> dict | None:
+    return ORDERS.get(normalize_order_id(order_id))
 
 
 def _back_menu() -> InlineKeyboardMarkup:
@@ -106,16 +119,8 @@ async def ask_for_order_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def handle_order_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Receive the order ID and look it up."""
-    raw = update.message.text.strip().upper()
-
-    # Normalize: accept "10042" or "NB10042" or "NB-10042"
-    if not raw.startswith("NB-"):
-        if raw.startswith("NB"):
-            raw = "NB-" + raw[2:]
-        elif raw.isdigit():
-            raw = "NB-" + raw
-
-    order = ORDERS.get(raw)
+    raw = normalize_order_id(update.message.text)
+    order = lookup_order(raw)
 
     if order:
         await update.message.reply_text(
