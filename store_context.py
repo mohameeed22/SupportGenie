@@ -150,10 +150,11 @@ def detect_language(text: str) -> str:
         return "Russian"
     if re.search(r"[\u0600-\u06ff]", text):
         return "Arabic"
-    if re.search(r"[\u4e00-\u9fff]", text):
-        return "Chinese"
+    # Prioritize Japanese (kana) detection before CJK unified ideographs
     if re.search(r"[\u3040-\u30ff]", text):
         return "Japanese"
+    if re.search(r"[\u4e00-\u9fff]", text):
+        return "Chinese"
     if re.search(r"[\u0900-\u097f]", text):
         return "Hindi"
     if any(token in lowered for token in ["hola", "gracias", "por favor", "pedido", "devolución"]):

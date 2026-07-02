@@ -19,6 +19,15 @@ def _search_products(query: str, limit: int = 5) -> list[dict]:
     if not tokens:
         return []
 
+    # If the query is a single token that exactly matches a known category,
+    # return only products from that category (case-insensitive).
+    if len(tokens) == 1:
+        cat = tokens[0]
+        categories = {p["category"].lower() for p in PRODUCTS}
+        if cat in categories:
+            filtered = [p for p in PRODUCTS if p["category"].lower() == cat]
+            return filtered[:limit]
+
     ranked: list[tuple[int, dict]] = []
     for product in PRODUCTS:
         haystack = " ".join(

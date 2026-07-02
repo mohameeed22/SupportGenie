@@ -18,19 +18,24 @@ _CONNECTION: sqlite3.Connection | None = None
 
 
 def _resolve_db_path() -> Path:
-    raw = config.DB_PATH or "supportgenie.db"
+    # Resolve path from environment when available so test fixtures can override
+    raw = os.getenv("SUPPORTGENIE_DB_PATH") or config.DB_PATH or "supportgenie.db"
     path = Path(raw)
+    # Special-case SQLite in-memory indicator
+    if raw == ":memory:":
+        return Path(raw)
     if not path.is_absolute():
         path = Path(__file__).resolve().parent.parent / path
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
 
-DB_PATH = _resolve_db_path()
+DB_PATH = None
 
 
 def _connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH.as_posix(), check_same_thread=False)
+    path = _resolve_db_path()
+    conn = sqlite3.connect(path.as_posix(), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -257,7 +262,16 @@ def record_escalation(user_id: int, *, reason: str, source: str = "general") -> 
     )
 
 
-def user_message_rate_limited(user_id: int, limit: int, window_seconds: int) -> bool:
+def user_message_rate_limited(user_id: int, max_messages: int | None = None, window_seconds: int | None = None) -> bool:
+    """Return True if the user has sent at least `max_messages` within `window_seconds`.
+
+    Accepts keyword names expected by tests: `max_messages` and `window_seconds`.
+    """
+    if max_messages is None:
+        max_messages = config.RATE_LIMIT_MAX_MESSAGES
+    if window_seconds is None:
+        window_seconds = config.RATE_LIMIT_WINDOW_SECONDS
+
     since = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
     row = _ensure_connection().execute(
         """
@@ -267,7 +281,7 @@ def user_message_rate_limited(user_id: int, limit: int, window_seconds: int) -> 
         """,
         (user_id, since.strftime("%Y-%m-%d %H:%M:%S")),
     ).fetchone()
-    return bool(row and row["total"] >= limit)
+    return bool(row and row["total"] >= max_messages)
 
 
 def count_users() -> int:
@@ -310,5 +324,6 @@ def escalation_rate() -> float:
     return round(count_events("escalation") / users * 100, 2)
 
 
-initialize()
+# Note: do not auto-initialize at import time. Tests may set environment variables
+# (e.g., SUPPORTGENIE_DB_PATH) via pytest fixtures before the first DB access.
 
