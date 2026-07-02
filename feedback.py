@@ -48,4 +48,3 @@ async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             [[InlineKeyboardButton("🧑‍💼 Talk to a Human", callback_data="menu:human")]]
         ),
     )
-

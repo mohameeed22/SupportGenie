@@ -20,6 +20,7 @@ WAITING_FOR_ORDER_ID = 1
 # Path to mock orders
 _ORDERS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "mock_orders.json")
 
+
 def _load_orders() -> dict[str, dict]:
     try:
         with open(_ORDERS_PATH, "r", encoding="utf-8") as f:
@@ -36,6 +37,7 @@ def _load_orders() -> dict[str, dict]:
     except Exception as e:
         logger.error("Failed to load mock_orders.json: %s", e)
         return {}
+
 
 ORDERS: dict[str, dict] = _load_orders()
 
@@ -56,7 +58,6 @@ def normalize_order_id(raw: str) -> str:
 
 
 def lookup_order(order_id: str) -> dict | None:
-    import re
 
     nid = normalize_order_id(order_id)
     order = ORDERS.get(nid)
@@ -80,12 +81,14 @@ def lookup_order(order_id: str) -> dict | None:
 
 
 def _back_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
+    return InlineKeyboardMarkup(
         [
-            InlineKeyboardButton("📦 Track Another", callback_data="menu:track"),
-            InlineKeyboardButton("🏠 Main Menu", callback_data="menu:main"),
+            [
+                InlineKeyboardButton("📦 Track Another", callback_data="menu:track"),
+                InlineKeyboardButton("🏠 Main Menu", callback_data="menu:main"),
+            ]
         ]
-    ])
+    )
 
 
 def _format_order(order: dict) -> str:
@@ -101,7 +104,7 @@ def _format_order(order: dict) -> str:
     lines = [
         f"*Order {order['order_id']}*",
         f"{status_emoji} Status: *{status}*",
-        f"",
+        "",
         f"📋 Item: {order['item']}",
         f"💰 Total: ${order['total']:.2f}",
         f"📅 Order Date: {order['order_date']}",
@@ -109,26 +112,26 @@ def _format_order(order: dict) -> str:
 
     if status == "Shipped":
         lines += [
-            f"",
+            "",
             f"🚛 Carrier: {order.get('carrier', 'N/A')}",
             f"🔍 Tracking: `{order.get('tracking_number', 'N/A')}`",
             f"📆 Est. Delivery: {order.get('estimated_delivery', 'N/A')}",
         ]
     elif status == "Delivered":
         lines += [
-            f"",
+            "",
             f"🎉 Delivered on: {order.get('delivered_date', 'N/A')}",
-            f"🛡️ 30-day returns available if needed.",
+            "🛡️ 30-day returns available if needed.",
         ]
     elif status == "Processing":
         lines += [
-            f"",
-            f"⏱️ Your order is being prepared. Est. dispatch: within 1 business day.",
+            "",
+            "⏱️ Your order is being prepared. Est. dispatch: within 1 business day.",
             f"📆 Est. Delivery: {order.get('estimated_delivery', 'N/A')}",
         ]
     elif status == "Cancelled":
         lines += [
-            f"",
+            "",
             f"ℹ️ Reason: {order.get('cancel_reason', 'N/A')}",
             f"💵 Refund: {order.get('refund_status', 'N/A')}",
         ]
@@ -166,10 +169,16 @@ async def handle_order_id(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             f"❌ I couldn't find an order with ID *{raw}*.\n\n"
             "Please double-check and try again, or contact our support team.",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📦 Try Again", callback_data="menu:track")],
-                [InlineKeyboardButton("🧑‍💼 Talk to a Human", callback_data="menu:human")],
-            ]),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [InlineKeyboardButton("📦 Try Again", callback_data="menu:track")],
+                    [
+                        InlineKeyboardButton(
+                            "🧑‍💼 Talk to a Human", callback_data="menu:human"
+                        )
+                    ],
+                ]
+            ),
         )
 
     return ConversationHandler.END

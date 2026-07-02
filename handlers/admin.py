@@ -21,9 +21,10 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     stats = dashboard_summary()
     top_questions = stats["top_questions"]
-    top_block = "\n".join(
-        f"• {row['question']} ({row['total']})" for row in top_questions
-    ) or "• No questions logged yet"
+    top_block = (
+        "\n".join(f"• {row['question']} ({row['total']})" for row in top_questions)
+        or "• No questions logged yet"
+    )
 
     await update.message.reply_text(
         "📊 *SupportGenie Stats*\n\n"
@@ -48,7 +49,9 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         message_text = " ".join(context.args).strip()
 
     if not message_text:
-        await update.message.reply_text("Usage: /broadcast <message> or reply to a message with /broadcast")
+        await update.message.reply_text(
+            "Usage: /broadcast <message> or reply to a message with /broadcast"
+        )
         return
 
     user_ids = session_store.get_all_user_ids()
@@ -61,4 +64,3 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             continue
 
     await update.message.reply_text(f"Broadcast sent to {sent} users.")
-

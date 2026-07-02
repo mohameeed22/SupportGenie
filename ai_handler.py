@@ -36,9 +36,11 @@ def _build_messages(
         user_name=profile.get("full_name"),
         extra_context=extra_context,
     )
-    return [{"role": "system", "content": system_prompt}] + history + [
-        {"role": "user", "content": user_message}
-    ]
+    return (
+        [{"role": "system", "content": system_prompt}]
+        + history
+        + [{"role": "user", "content": user_message}]
+    )
 
 
 async def _create_completion(messages: list[dict[str, str]]) -> str:

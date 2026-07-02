@@ -1,6 +1,5 @@
 """Pytest configuration and shared fixtures."""
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -12,9 +11,9 @@ def temp_db():
     """Create a temporary SQLite database for tests."""
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
-    
+
     yield db_path
-    
+
     # Cleanup
     if Path(db_path).exists():
         Path(db_path).unlink()

@@ -25,7 +25,9 @@ SUPPORT_HOURS: str = os.getenv("SUPPORT_HOURS", "Monday-Friday, 9am-6pm EST")
 ADMIN_USER_IDS: set[int] = set()
 _raw_admin_ids = os.getenv("ADMIN_USER_IDS", "")
 if _raw_admin_ids.strip():
-    ADMIN_USER_IDS = {int(item.strip()) for item in _raw_admin_ids.split(",") if item.strip()}
+    ADMIN_USER_IDS = {
+        int(item.strip()) for item in _raw_admin_ids.split(",") if item.strip()
+    }
 
 RATE_LIMIT_MAX_MESSAGES: int = int(os.getenv("RATE_LIMIT_MAX_MESSAGES", "10"))
 RATE_LIMIT_WINDOW_SECONDS: int = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
@@ -37,10 +39,16 @@ class Settings(BaseModel):
     groq_api_key: str = Field(alias="GROQ_API_KEY")
     groq_model: str = Field(default="llama-3.3-70b-versatile", alias="GROQ_MODEL")
     support_email: str = Field(default="support@novabuy.store", alias="SUPPORT_EMAIL")
-    support_hours: str = Field(default="Monday-Friday, 9am-6pm EST", alias="SUPPORT_HOURS")
+    support_hours: str = Field(
+        default="Monday-Friday, 9am-6pm EST", alias="SUPPORT_HOURS"
+    )
     admin_user_ids: set[int] = Field(default_factory=set, alias="ADMIN_USER_IDS")
-    rate_limit_max_messages: int = Field(default=10, alias="RATE_LIMIT_MAX_MESSAGES", ge=1)
-    rate_limit_window_seconds: int = Field(default=60, alias="RATE_LIMIT_WINDOW_SECONDS", ge=10)
+    rate_limit_max_messages: int = Field(
+        default=10, alias="RATE_LIMIT_MAX_MESSAGES", ge=1
+    )
+    rate_limit_window_seconds: int = Field(
+        default=60, alias="RATE_LIMIT_WINDOW_SECONDS", ge=10
+    )
     db_path: str = Field(default="supportgenie.db", alias="SUPPORTGENIE_DB_PATH")
 
     @field_validator("admin_user_ids", mode="before")

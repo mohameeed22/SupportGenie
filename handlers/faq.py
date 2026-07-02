@@ -47,12 +47,14 @@ def _faq_menu() -> InlineKeyboardMarkup:
 
 
 def _back_button() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
+    return InlineKeyboardMarkup(
         [
-            InlineKeyboardButton("⬅️ More FAQs", callback_data="menu:faq"),
-            InlineKeyboardButton("🏠 Main Menu", callback_data="menu:main"),
+            [
+                InlineKeyboardButton("⬅️ More FAQs", callback_data="menu:faq"),
+                InlineKeyboardButton("🏠 Main Menu", callback_data="menu:main"),
+            ]
         ]
-    ])
+    )
 
 
 async def show_faq_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -75,7 +77,9 @@ async def show_faq_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     faq = FAQS.get(faq_key)
 
     if not faq:
-        await query.edit_message_text("Sorry, I couldn't find that answer. Please try again.")
+        await query.edit_message_text(
+            "Sorry, I couldn't find that answer. Please try again."
+        )
         return
 
     from ai_handler import get_ai_response

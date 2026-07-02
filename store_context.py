@@ -5,6 +5,8 @@ This is the "knowledge base" injected into every AI conversation as a system pro
 grounding responses in NovaBuy's specific products and policies.
 """
 
+import re
+
 # ── Product Catalog ───────────────────────────────────────────────────────────
 PRODUCTS: list[dict] = [
     {
@@ -141,23 +143,23 @@ def _build_product_list() -> str:
     return "\n".join(lines)
 
 
-import re
-
-
 def detect_language(text: str) -> str:
     lowered = text.lower()
-    if re.search(r"[\u0400-\u04ff]", text):
-        return "Russian"
-    if re.search(r"[\u0600-\u06ff]", text):
-        return "Arabic"
     # Prioritize Japanese (kana) detection before CJK unified ideographs
     if re.search(r"[\u3040-\u30ff]", text):
         return "Japanese"
     if re.search(r"[\u4e00-\u9fff]", text):
         return "Chinese"
+    if re.search(r"[\u0400-\u04ff]", text):
+        return "Russian"
+    if re.search(r"[\u0600-\u06ff]", text):
+        return "Arabic"
     if re.search(r"[\u0900-\u097f]", text):
         return "Hindi"
-    if any(token in lowered for token in ["hola", "gracias", "por favor", "pedido", "devolución"]):
+    if any(
+        token in lowered
+        for token in ["hola", "gracias", "por favor", "pedido", "devolución"]
+    ):
         return "Spanish"
     if any(token in lowered for token in ["bonjour", "merci", "commande", "retour"]):
         return "French"

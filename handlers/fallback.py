@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 def _back_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🏠 Back to Menu", callback_data="menu:main")]
-    ])
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🏠 Back to Menu", callback_data="menu:main")]]
+    )
 
 
 async def human_escalation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -30,19 +30,25 @@ async def human_escalation(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "_In the meantime, our FAQ section may have the answer you need!_ 👇"
     )
 
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("❓ Browse FAQs", callback_data="menu:faq")],
-        [InlineKeyboardButton("🏠 Back to Menu", callback_data="menu:main")],
-    ])
+    keyboard = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("❓ Browse FAQs", callback_data="menu:faq")],
+            [InlineKeyboardButton("🏠 Back to Menu", callback_data="menu:main")],
+        ]
+    )
 
     if update.callback_query:
         query = update.callback_query
         await query.answer()
         await query.message.chat.send_action("typing")
-        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
+        await query.edit_message_text(
+            text, parse_mode="Markdown", reply_markup=keyboard
+        )
     else:
         await update.message.chat.send_action("typing")
-        await update.message.reply_text(text, parse_mode="Markdown", reply_markup=keyboard)
+        await update.message.reply_text(
+            text, parse_mode="Markdown", reply_markup=keyboard
+        )
 
     # Log the escalation for monitoring
     user = update.effective_user
@@ -76,7 +82,7 @@ async def products_overview(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await query.edit_message_text(
         "\n".join(lines),
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🏠 Back to Menu", callback_data="menu:main")]
-        ]),
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("🏠 Back to Menu", callback_data="menu:main")]]
+        ),
     )

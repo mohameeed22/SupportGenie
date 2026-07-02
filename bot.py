@@ -79,7 +79,9 @@ async def ai_message_handler(update: Update, context) -> None:
 
     sentiment = analyze_sentiment(user_text)
     if sentiment.escalate:
-        session_store.record_escalation(user_id, reason="sentiment-trigger", source="ai-chat")
+        session_store.record_escalation(
+            user_id, reason="sentiment-trigger", source="ai-chat"
+        )
         await human_escalation(update, context)
         return
 
@@ -92,7 +94,7 @@ async def ai_message_handler(update: Update, context) -> None:
 # ── Bot Setup ─────────────────────────────────────────────────────────────────
 def main() -> None:
     config.validate_config()
-    
+
     # Initialize database
     session_store.initialize()
     logger.info("Database initialized: %s", session_store.DB_PATH)

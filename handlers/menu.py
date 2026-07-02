@@ -15,20 +15,24 @@ from handlers.returns import ask_for_return_order_id
 
 
 def main_menu_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
+    return InlineKeyboardMarkup(
         [
-            InlineKeyboardButton("📦 Track My Order", callback_data="menu:track"),
-            InlineKeyboardButton("🔎 Search Products", callback_data="menu:search"),
-        ],
-        [
-            InlineKeyboardButton("❓ FAQs", callback_data="menu:faq"),
-            InlineKeyboardButton("↩️ Returns", callback_data="menu:returns"),
-        ],
-        [
-            InlineKeyboardButton("🛍️ Our Products", callback_data="menu:products"),
-            InlineKeyboardButton("🧑‍💼 Talk to a Human", callback_data="menu:human"),
-        ],
-    ])
+            [
+                InlineKeyboardButton("📦 Track My Order", callback_data="menu:track"),
+                InlineKeyboardButton("🔎 Search Products", callback_data="menu:search"),
+            ],
+            [
+                InlineKeyboardButton("❓ FAQs", callback_data="menu:faq"),
+                InlineKeyboardButton("↩️ Returns", callback_data="menu:returns"),
+            ],
+            [
+                InlineKeyboardButton("🛍️ Our Products", callback_data="menu:products"),
+                InlineKeyboardButton(
+                    "🧑‍💼 Talk to a Human", callback_data="menu:human"
+                ),
+            ],
+        ]
+    )
 
 
 async def menu_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

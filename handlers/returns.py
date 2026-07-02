@@ -8,7 +8,6 @@ from telegram.ext import ContextTypes, ConversationHandler
 from db import session_store
 from feedback import feedback_keyboard
 from handlers.order_tracking import lookup_order, normalize_order_id
-from store_context import PRODUCTS
 
 WAITING_FOR_RETURN_ORDER_ID = 1
 WAITING_FOR_RETURN_REASON = 2
@@ -95,4 +94,3 @@ async def cancel_returns(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Return flow cancelled.")
     context.user_data.pop("return_order_id", None)
     return ConversationHandler.END
-

@@ -101,7 +101,7 @@ docker run supportgenie-test pytest --cov=. tests/
 ```yaml
 - name: Run tests
   run: pytest -v --tb=short
-  
+
 - name: Upload coverage
   uses: codecov/codecov-action@v3
 ```

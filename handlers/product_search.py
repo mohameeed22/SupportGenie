@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import Counter
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes, ConversationHandler
@@ -97,7 +96,9 @@ async def ask_for_search_query(update: Update, context: ContextTypes.DEFAULT_TYP
     return WAITING_FOR_SEARCH_QUERY
 
 
-async def handle_search_query_text(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str):
+async def handle_search_query_text(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, query: str
+):
     user = update.effective_user
     session_store.upsert_user(
         user.id,
@@ -122,4 +123,3 @@ async def handle_search_query(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def cancel_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Product search cancelled.")
     return ConversationHandler.END
-

@@ -66,6 +66,7 @@ def analyze_sentiment(text: str) -> SentimentResult:
         label = "neutral"
 
     # escalate only for very negative scores or explicit escalation keywords
-    escalate = score <= -6 or any(term in lowered for term in ("human", "agent", "manager", "supervisor"))
+    escalate = score <= -6 or any(
+        term in lowered for term in ("human", "agent", "manager", "supervisor")
+    )
     return SentimentResult(label=label, score=score, escalate=escalate)
-

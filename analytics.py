@@ -13,4 +13,3 @@ def dashboard_summary() -> dict[str, object]:
         "escalation_rate": session_store.escalation_rate(),
         "top_questions": session_store.top_questions(),
     }
-
