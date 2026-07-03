@@ -45,7 +45,13 @@ from handlers.order_tracking import (
     WAITING_FOR_ORDER_ID,
 )
 from feedback import handle_feedback, feedback_keyboard
-from handlers.admin import stats_command, broadcast_command
+from handlers.admin import (
+    stats_command,
+    broadcast_command,
+    inbox_command,
+    ticket_command,
+    resolve_ticket_command,
+)
 from handlers.sentiment import analyze_sentiment
 from db import session_store
 from handlers.fallback import human_escalation
@@ -166,6 +172,9 @@ def main() -> None:
     app.add_handler(CommandHandler("start", start_handler))
     app.add_handler(CommandHandler("help", help_handler))
     app.add_handler(CommandHandler("stats", stats_command))
+    app.add_handler(CommandHandler("inbox", inbox_command))
+    app.add_handler(CommandHandler("ticket", ticket_command))
+    app.add_handler(CommandHandler("resolve_ticket", resolve_ticket_command))
     app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(order_conv)
     app.add_handler(search_conv)

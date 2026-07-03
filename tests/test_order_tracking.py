@@ -1,5 +1,8 @@
 """Tests for order tracking utilities."""
 
+from types import SimpleNamespace
+
+from handlers import order_tracking
 from handlers.order_tracking import normalize_order_id, lookup_order
 
 
@@ -59,3 +62,34 @@ class TestOrderLookup:
             assert "user_id" in order
             assert "total" in order
             assert "status" in order
+
+    def test_lookup_uses_live_api_when_available(self, monkeypatch):
+        monkeypatch.setattr(order_tracking.config, "ORDER_LOOKUP_URL", "https://api.example.com/orders")
+        monkeypatch.setattr(order_tracking.config, "ORDER_LOOKUP_API_KEY", "secret")
+        monkeypatch.setattr(order_tracking.config, "ORDER_LOOKUP_TIMEOUT_SECONDS", 2)
+
+        class FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"order": {"order_id": "NB-55555", "status": "Shipped", "item": "Test"}}
+
+        captured = {}
+
+        def fake_get(url, headers=None, timeout=None):
+            captured["url"] = url
+            captured["headers"] = headers
+            captured["timeout"] = timeout
+            return FakeResponse()
+
+        monkeypatch.setattr(order_tracking.httpx, "get", fake_get)
+
+        order = lookup_order("NB-55555")
+
+        assert order is not None
+        assert order["order_id"] == "NB-55555"
+        assert order["status"] == "Shipped"
+        assert captured["url"].endswith("/NB-55555")
+        assert captured["headers"]["Authorization"] == "Bearer secret"
+        assert captured["timeout"] == 2

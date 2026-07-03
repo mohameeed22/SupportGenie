@@ -3,6 +3,7 @@ handlers/fallback.py — Human escalation and out-of-scope handler.
 """
 
 import config
+from db import session_store
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 import logging
@@ -21,11 +22,23 @@ async def human_escalation(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     Triggered by 'Talk to a Human' button OR called programmatically
     when AI detects it cannot help. Works for both messages and callback queries.
     """
+    user = update.effective_user
+    transcript = session_store.get_recent_messages(user.id, limit=12)
+    ticket = session_store.create_support_ticket(
+        user.id,
+        subject="Human support request",
+        source="telegram-escalation",
+        reason="user-request" if update.callback_query else "ai-escalation",
+        transcript=transcript,
+        metadata={"username": user.username, "full_name": user.full_name},
+    )
+
     text = (
         "🧑‍💼 *Connecting you with our support team*\n\n"
         f"📧 Email: *{config.SUPPORT_EMAIL}*\n"
         f"🕐 Hours: {config.SUPPORT_HOURS}\n"
         f"⚡ Response time: Within 4 hours\n\n"
+        f"🎫 Ticket ID: *#{ticket.get('ticket_id', 'pending')}*\n\n"
         "Please include your *Order ID* and a description of your issue for faster service.\n\n"
         "_In the meantime, our FAQ section may have the answer you need!_ 👇"
     )
@@ -51,7 +64,6 @@ async def human_escalation(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
 
     # Log the escalation for monitoring
-    user = update.effective_user
     logger.info(
         "ESCALATION — User %s (@%s, ID: %s) requested human support.",
         user.full_name,

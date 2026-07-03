@@ -86,6 +86,24 @@ def _initialize_schema(conn: sqlite3.Connection) -> None:
             details TEXT,
             created_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS support_tickets (
+            ticket_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            subject TEXT NOT NULL,
+            source TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            reason TEXT,
+            order_id TEXT,
+            transcript TEXT,
+            metadata TEXT,
+            assigned_to TEXT,
+            resolution_note TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            resolved_at TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        );
         """
     )
     conn.commit()
@@ -355,6 +373,142 @@ def escalation_rate() -> float:
     if users == 0:
         return 0.0
     return round(count_events("escalation") / users * 100, 2)
+
+
+def create_support_ticket(
+    user_id: int,
+    subject: str,
+    *,
+    source: str = "general",
+    reason: str | None = None,
+    order_id: str | None = None,
+    transcript: list[dict[str, str]] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    conn = _ensure_connection()
+    now = _now()
+    cursor = conn.execute(
+        """
+        INSERT INTO support_tickets (
+            user_id, subject, source, status, reason, order_id, transcript,
+            metadata, created_at, updated_at
+        ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            user_id,
+            subject,
+            source,
+            reason,
+            order_id,
+            json.dumps(transcript or []),
+            json.dumps(metadata or {}),
+            now,
+            now,
+        ),
+    )
+    conn.commit()
+    ticket_id = int(cursor.lastrowid)
+    record_event(
+        user_id,
+        "support_ticket_created",
+        question=subject,
+        details={
+            "ticket_id": ticket_id,
+            "source": source,
+            "reason": reason or "",
+            "order_id": order_id or "",
+        },
+    )
+    return get_support_ticket(ticket_id) or {}
+
+
+def _support_ticket_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    data = dict(row)
+    for key in ("transcript", "metadata"):
+        raw = data.get(key)
+        if raw:
+            try:
+                data[key] = json.loads(raw)
+            except json.JSONDecodeError:
+                pass
+    return data
+
+
+def get_support_ticket(ticket_id: int) -> dict[str, Any] | None:
+    row = (
+        _ensure_connection()
+        .execute(
+            "SELECT * FROM support_tickets WHERE ticket_id = ?",
+            (ticket_id,),
+        )
+        .fetchone()
+    )
+    return _support_ticket_row_to_dict(row) if row else None
+
+
+def list_support_tickets(
+    *, status: str | None = None, limit: int = 10
+) -> list[dict[str, Any]]:
+    query = "SELECT * FROM support_tickets"
+    params: list[Any] = []
+    if status:
+        query += " WHERE status = ?"
+        params.append(status)
+    query += " ORDER BY updated_at DESC, ticket_id DESC LIMIT ?"
+    params.append(limit)
+    rows = _ensure_connection().execute(query, params).fetchall()
+    return [_support_ticket_row_to_dict(row) for row in rows]
+
+
+def update_support_ticket(
+    ticket_id: int,
+    *,
+    status: str | None = None,
+    assigned_to: str | None = None,
+    resolution_note: str | None = None,
+) -> dict[str, Any] | None:
+    ticket = get_support_ticket(ticket_id)
+    if not ticket:
+        return None
+
+    updates: list[str] = []
+    values: list[Any] = []
+    if status is not None:
+        updates.append("status = ?")
+        values.append(status)
+        if status.lower() == "resolved":
+            updates.append("resolved_at = ?")
+            values.append(_now())
+    if assigned_to is not None:
+        updates.append("assigned_to = ?")
+        values.append(assigned_to)
+    if resolution_note is not None:
+        updates.append("resolution_note = ?")
+        values.append(resolution_note)
+
+    if not updates:
+        return ticket
+
+    updates.append("updated_at = ?")
+    values.append(_now())
+    values.append(ticket_id)
+
+    _ensure_connection().execute(
+        f"UPDATE support_tickets SET {', '.join(updates)} WHERE ticket_id = ?",
+        values,
+    )
+    _ensure_connection().commit()
+    return get_support_ticket(ticket_id)
+
+
+def count_support_tickets(*, status: str | None = None) -> int:
+    query = "SELECT COUNT(*) AS total FROM support_tickets"
+    params: list[Any] = []
+    if status:
+        query += " WHERE status = ?"
+        params.append(status)
+    row = _ensure_connection().execute(query, params).fetchone()
+    return int(row["total"]) if row else 0
 
 
 # Note: do not auto-initialize at import time. Tests may set environment variables

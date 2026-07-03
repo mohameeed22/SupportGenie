@@ -64,3 +64,89 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             continue
 
     await update.message.reply_text(f"Broadcast sent to {sent} users.")
+
+
+def _format_ticket(ticket: dict) -> str:
+    transcript_size = len(ticket.get("transcript") or [])
+    return (
+        f"🎫 *Ticket #{ticket['ticket_id']}*\n"
+        f"Status: *{ticket['status']}*\n"
+        f"User: `{ticket['user_id']}`\n"
+        f"Source: {ticket.get('source', 'unknown')}\n"
+        f"Subject: {ticket.get('subject', 'N/A')}\n"
+        f"Order: {ticket.get('order_id') or 'N/A'}\n"
+        f"Transcript messages: {transcript_size}\n"
+        f"Updated: {ticket.get('updated_at', 'N/A')}"
+    )
+
+
+async def inbox_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_admin(update.effective_user.id):
+        await update.message.reply_text("This command is restricted to admins.")
+        return
+
+    tickets = session_store.list_support_tickets(status="open", limit=10)
+    if not tickets:
+        await update.message.reply_text("No open support tickets.")
+        return
+
+    lines = ["📥 *Open Support Inbox*", ""]
+    for ticket in tickets:
+        lines.append(
+            f"• #{ticket['ticket_id']} {ticket.get('subject', 'Support request')} — user {ticket['user_id']}"
+        )
+        lines.append(f"  {ticket.get('source', 'unknown')} · {ticket.get('updated_at', 'N/A')}")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+async def ticket_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_admin(update.effective_user.id):
+        await update.message.reply_text("This command is restricted to admins.")
+        return
+
+    if not context.args:
+        await update.message.reply_text("Usage: /ticket <ticket_id>")
+        return
+
+    try:
+        ticket_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Ticket ID must be a number.")
+        return
+
+    ticket = session_store.get_support_ticket(ticket_id)
+    if not ticket:
+        await update.message.reply_text(f"Ticket #{ticket_id} not found.")
+        return
+
+    await update.message.reply_text(_format_ticket(ticket), parse_mode="Markdown")
+
+
+async def resolve_ticket_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_admin(update.effective_user.id):
+        await update.message.reply_text("This command is restricted to admins.")
+        return
+
+    if not context.args:
+        await update.message.reply_text("Usage: /resolve_ticket <ticket_id> [note]")
+        return
+
+    try:
+        ticket_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Ticket ID must be a number.")
+        return
+
+    note = " ".join(context.args[1:]).strip() or "Resolved by admin"
+    ticket = session_store.update_support_ticket(
+        ticket_id,
+        status="resolved",
+        resolution_note=note,
+        assigned_to=update.effective_user.username or update.effective_user.full_name,
+    )
+    if not ticket:
+        await update.message.reply_text(f"Ticket #{ticket_id} not found.")
+        return
+
+    await update.message.reply_text(f"Ticket #{ticket_id} marked as resolved.")

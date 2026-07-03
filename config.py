@@ -29,6 +29,13 @@ if _raw_admin_ids.strip():
         int(item.strip()) for item in _raw_admin_ids.split(",") if item.strip()
     }
 
+# Optional live integrations
+ORDER_LOOKUP_URL: str = os.getenv("ORDER_LOOKUP_URL", "")
+ORDER_LOOKUP_API_KEY: str = os.getenv("ORDER_LOOKUP_API_KEY", "")
+ORDER_LOOKUP_TIMEOUT_SECONDS: float = float(
+    os.getenv("ORDER_LOOKUP_TIMEOUT_SECONDS", "5")
+)
+
 RATE_LIMIT_MAX_MESSAGES: int = int(os.getenv("RATE_LIMIT_MAX_MESSAGES", "10"))
 RATE_LIMIT_WINDOW_SECONDS: int = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 DB_PATH: str = os.getenv("SUPPORTGENIE_DB_PATH", "supportgenie.db")
@@ -43,6 +50,11 @@ class Settings(BaseModel):
         default="Monday-Friday, 9am-6pm EST", alias="SUPPORT_HOURS"
     )
     admin_user_ids: set[int] = Field(default_factory=set, alias="ADMIN_USER_IDS")
+    order_lookup_url: str = Field(default="", alias="ORDER_LOOKUP_URL")
+    order_lookup_api_key: str = Field(default="", alias="ORDER_LOOKUP_API_KEY")
+    order_lookup_timeout_seconds: float = Field(
+        default=5, alias="ORDER_LOOKUP_TIMEOUT_SECONDS", gt=0
+    )
     rate_limit_max_messages: int = Field(
         default=10, alias="RATE_LIMIT_MAX_MESSAGES", ge=1
     )

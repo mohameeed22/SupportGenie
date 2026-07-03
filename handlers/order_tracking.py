@@ -9,8 +9,14 @@ Flow:
 import json
 import os
 import logging
+from typing import Any
+
+import httpx
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
+
+import config
+from db import session_store
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +48,32 @@ def _load_orders() -> dict[str, dict]:
 ORDERS: dict[str, dict] = _load_orders()
 
 
+def _fetch_live_order(order_id: str) -> dict[str, Any] | None:
+    if not config.ORDER_LOOKUP_URL:
+        return None
+
+    url = config.ORDER_LOOKUP_URL.rstrip("/") + "/" + order_id
+    headers = {}
+    if config.ORDER_LOOKUP_API_KEY:
+        headers["Authorization"] = f"Bearer {config.ORDER_LOOKUP_API_KEY}"
+
+    try:
+        response = httpx.get(
+            url, headers=headers, timeout=config.ORDER_LOOKUP_TIMEOUT_SECONDS
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as exc:
+        logger.warning("Live order lookup failed for %s: %s", order_id, exc)
+        return None
+
+    if isinstance(payload, dict):
+        if isinstance(payload.get("order"), dict):
+            return payload["order"]
+        return payload
+    return None
+
+
 def normalize_order_id(raw: str) -> str:
     # Remove all whitespace, uppercase, and ensure canonical NB-xxxxx format
     if raw is None:
@@ -60,6 +92,12 @@ def normalize_order_id(raw: str) -> str:
 def lookup_order(order_id: str) -> dict | None:
 
     nid = normalize_order_id(order_id)
+    live_order = _fetch_live_order(nid)
+    if live_order:
+        live_order.setdefault("order_id", nid)
+        live_order.setdefault("id", live_order.get("order_id", nid))
+        return live_order
+
     order = ORDERS.get(nid)
     if order:
         # ensure test-friendly key 'id' exists
@@ -163,6 +201,12 @@ async def handle_order_id(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             _format_order(order),
             parse_mode="Markdown",
             reply_markup=_back_menu(),
+        )
+        session_store.record_event(
+            update.effective_user.id,
+            "order_lookup",
+            question=raw,
+            details={"status": order.get("status", "")},
         )
     else:
         await update.message.reply_text(

@@ -33,6 +33,22 @@ class TestConfigValidation:
         assert config.groq_model == "llama-3.3-70b-versatile"
         assert config.rate_limit_max_messages == 10
         assert config.rate_limit_window_seconds == 60
+        assert config.order_lookup_url == ""
+        assert config.order_lookup_timeout_seconds == 5
+
+    def test_order_lookup_settings(self):
+        config = Settings.model_validate(
+            {
+                "TELEGRAM_BOT_TOKEN": "test",
+                "GROQ_API_KEY": "test",
+                "ORDER_LOOKUP_URL": "https://api.example.com/orders",
+                "ORDER_LOOKUP_API_KEY": "abc123",
+                "ORDER_LOOKUP_TIMEOUT_SECONDS": 12,
+            }
+        )
+        assert config.order_lookup_url == "https://api.example.com/orders"
+        assert config.order_lookup_api_key == "abc123"
+        assert config.order_lookup_timeout_seconds == 12
 
     def test_admin_ids_parsing_string(self):
         """Test ADMIN_USER_IDS parsing from comma-separated string."""

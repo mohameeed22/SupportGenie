@@ -106,6 +106,48 @@ class TestAnalytics:
         assert session_store.count_events("feedback") >= 1
 
 
+class TestSupportTickets:
+    def test_create_and_read_ticket(self, test_user_id):
+        session_store.upsert_user(test_user_id)
+        ticket = session_store.create_support_ticket(
+            test_user_id,
+            "Need help with my order",
+            source="telegram-escalation",
+            reason="user-request",
+            order_id="NB-10042",
+            transcript=[{"role": "user", "content": "help"}],
+            metadata={"channel": "telegram"},
+        )
+
+        assert ticket["ticket_id"] > 0
+        assert ticket["status"] == "open"
+        assert ticket["order_id"] == "NB-10042"
+        assert ticket["transcript"][0]["content"] == "help"
+
+    def test_list_and_resolve_ticket(self, test_user_id):
+        session_store.upsert_user(test_user_id)
+        ticket = session_store.create_support_ticket(
+            test_user_id,
+            "Refund issue",
+            source="telegram-escalation",
+        )
+
+        open_tickets = session_store.list_support_tickets(status="open", limit=5)
+        assert open_tickets
+        assert open_tickets[0]["ticket_id"] == ticket["ticket_id"]
+
+        resolved = session_store.update_support_ticket(
+            ticket["ticket_id"],
+            status="resolved",
+            resolution_note="Handled by admin",
+            assigned_to="agent-1",
+        )
+        assert resolved is not None
+        assert resolved["status"] == "resolved"
+        assert resolved["resolution_note"] == "Handled by admin"
+        assert session_store.count_support_tickets(status="resolved") >= 1
+
+
 class TestRateLimiting:
     def test_rate_limit_check_passes(self, test_user_id):
         """Test rate limiting allows messages within limit."""

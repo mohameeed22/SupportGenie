@@ -102,6 +102,9 @@ Open `.env` and fill in:
 TELEGRAM_BOT_TOKEN=your_token_from_botfather
 GROQ_API_KEY=your_groq_api_key
 GROQ_MODEL=llama-3.3-70b-versatile
+ADMIN_USER_IDS=123456789
+ORDER_LOOKUP_URL=https://api.yourstore.com/orders
+ORDER_LOOKUP_API_KEY=your_optional_api_token
 ```
 
 ### 4. Run
@@ -147,6 +150,10 @@ Open your bot in Telegram and send `/start` 🎉
 | `GROQ_MODEL` | ❌ | `llama-3.3-70b-versatile` | Any Groq-supported model |
 | `SUPPORT_EMAIL` | ❌ | `support@novabuy.store` | Shown in escalation message |
 | `SUPPORT_HOURS` | ❌ | `Mon–Fri, 9am–6pm EST` | Shown in escalation message |
+| `ADMIN_USER_IDS` | ❌ | — | Comma-separated Telegram admin IDs |
+| `ORDER_LOOKUP_URL` | ❌ | — | Optional live order lookup endpoint |
+| `ORDER_LOOKUP_API_KEY` | ❌ | — | Bearer token for the order API |
+| `ORDER_LOOKUP_TIMEOUT_SECONDS` | ❌ | `5` | Timeout for live order requests |
 
 ---
 
@@ -156,9 +163,10 @@ This project is designed to be a starting point. To use it with a real client:
 
 1. **Products** → Update the `PRODUCTS` list in [`store_context.py`](store_context.py)
 2. **Policies** → Update the `POLICIES` string in [`store_context.py`](store_context.py)
-3. **Orders** → Replace the JSON file lookup in [`order_tracking.py`](handlers/order_tracking.py) with a real DB/API call
-4. **Escalation** → Wire [`fallback.py`](handlers/fallback.py) to a CRM webhook (Freshdesk, Zendesk, etc.)
-5. **AI Model** → Switch `GROQ_MODEL` in `.env` for speed/cost trade-offs:
+3. **Orders** → Set `ORDER_LOOKUP_URL` and `ORDER_LOOKUP_API_KEY` to query a real order service; the JSON file remains a fallback
+4. **Escalation** → Human handoff now creates support tickets in SQLite; connect [`fallback.py`](handlers/fallback.py) to Zendesk/Freshdesk if you want external ticketing too
+5. **Admin** → Use `/inbox`, `/ticket <id>`, and `/resolve_ticket <id>` to manage escalations from Telegram
+6. **AI Model** → Switch `GROQ_MODEL` in `.env` for speed/cost trade-offs:
    - `llama-3.3-70b-versatile` — most capable (default)
    - `llama-3.1-8b-instant` — fastest, lowest cost
 

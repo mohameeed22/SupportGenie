@@ -21,6 +21,8 @@ Update these fields:
 - `TELEGRAM_BOT_TOKEN` — Your bot token from @BotFather
 - `GROQ_API_KEY` — Your Groq API key
 - `ADMIN_USER_IDS` — Your Telegram user ID (comma-separated for multiple admins)
+- `ORDER_LOOKUP_URL` — Optional live order API endpoint, e.g. `https://api.yourstore.com/orders`
+- `ORDER_LOOKUP_API_KEY` — Optional bearer token for the live order API
 
 ### 2. Run with Docker Compose
 
@@ -192,11 +194,15 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 
 ```
 /stats      — View dashboard (users, questions, escalations)
+/inbox      — View open support tickets
+/ticket ID  — View a specific ticket
+/resolve_ticket ID [note] — Resolve a ticket with an optional note
 /broadcast  — Send message to all users (admin only)
 ```
 
 Get bot stats via Telegram admin commands:
 - Send `/stats` to the bot (requires ADMIN_USER_IDS)
+- Send `/inbox` to review open escalations and `/ticket <id>` to inspect one
 
 ## Updating
 
@@ -250,6 +256,9 @@ git pull
 | `SUPPORT_EMAIL` | support@novabuy.store | — | Contact for escalations |
 | `SUPPORT_HOURS` | Mon-Fri, 9am-6pm EST | — | Display in escalation message |
 | `ADMIN_USER_IDS` | — | — | Comma-separated, needed for /stats |
+| `ORDER_LOOKUP_URL` | — | — | Optional live order lookup endpoint |
+| `ORDER_LOOKUP_API_KEY` | — | — | Optional bearer token for live order lookup |
+| `ORDER_LOOKUP_TIMEOUT_SECONDS` | 5 | — | Timeout for live order requests |
 | `RATE_LIMIT_MAX_MESSAGES` | 10 | — | Messages per user per window |
 | `RATE_LIMIT_WINDOW_SECONDS` | 60 | — | Time window for rate limit (seconds) |
 | `SUPPORTGENIE_DB_PATH` | supportgenie.db | — | SQLite database location |
