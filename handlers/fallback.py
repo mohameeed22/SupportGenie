@@ -1,9 +1,3 @@
-"""
-handlers/fallback.py — Human escalation and out-of-scope handler.
-"""
-
-import config
-from db import session_store
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 import logging
@@ -17,63 +11,7 @@ def _back_menu() -> InlineKeyboardMarkup:
     )
 
 
-async def human_escalation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Triggered by 'Talk to a Human' button OR called programmatically
-    when AI detects it cannot help. Works for both messages and callback queries.
-    """
-    user = update.effective_user
-    transcript = session_store.get_recent_messages(user.id, limit=12)
-    ticket = session_store.create_support_ticket(
-        user.id,
-        subject="Human support request",
-        source="telegram-escalation",
-        reason="user-request" if update.callback_query else "ai-escalation",
-        transcript=transcript,
-        metadata={"username": user.username, "full_name": user.full_name},
-    )
-
-    text = (
-        "🧑‍💼 *Connecting you with our support team*\n\n"
-        f"📧 Email: *{config.SUPPORT_EMAIL}*\n"
-        f"🕐 Hours: {config.SUPPORT_HOURS}\n"
-        f"⚡ Response time: Within 4 hours\n\n"
-        f"🎫 Ticket ID: *#{ticket.get('ticket_id', 'pending')}*\n\n"
-        "Please include your *Order ID* and a description of your issue for faster service.\n\n"
-        "_In the meantime, our FAQ section may have the answer you need!_ 👇"
-    )
-
-    keyboard = InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("❓ Browse FAQs", callback_data="menu:faq")],
-            [InlineKeyboardButton("🏠 Back to Menu", callback_data="menu:main")],
-        ]
-    )
-
-    if update.callback_query:
-        query = update.callback_query
-        await query.answer()
-        await query.message.chat.send_action("typing")
-        await query.edit_message_text(
-            text, parse_mode="Markdown", reply_markup=keyboard
-        )
-    else:
-        await update.message.chat.send_action("typing")
-        await update.message.reply_text(
-            text, parse_mode="Markdown", reply_markup=keyboard
-        )
-
-    # Log the escalation for monitoring
-    logger.info(
-        "ESCALATION — User %s (@%s, ID: %s) requested human support.",
-        user.full_name,
-        user.username,
-        user.id,
-    )
-
-
 async def products_overview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show a quick product catalog overview."""
     from store_context import PRODUCTS
 
     query = update.callback_query
@@ -94,7 +32,5 @@ async def products_overview(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await query.edit_message_text(
         "\n".join(lines),
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🏠 Back to Menu", callback_data="menu:main")]]
-        ),
+        reply_markup=_back_menu(),
     )

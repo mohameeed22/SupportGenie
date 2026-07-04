@@ -18,10 +18,8 @@ _CONNECTION: sqlite3.Connection | None = None
 
 
 def _resolve_db_path() -> Path:
-    # Resolve path from environment when available so test fixtures can override
     raw = os.getenv("SUPPORTGENIE_DB_PATH") or config.DB_PATH or "supportgenie.db"
     path = Path(raw)
-    # Special-case SQLite in-memory indicator
     if raw == ":memory:":
         return Path(raw)
     if not path.is_absolute():
@@ -103,6 +101,14 @@ def _initialize_schema(conn: sqlite3.Connection) -> None:
             updated_at TEXT NOT NULL,
             resolved_at TEXT,
             FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS csat_ratings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            ticket_id INTEGER NOT NULL,
+            rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+            created_at TEXT NOT NULL
         );
         """
     )
@@ -295,17 +301,45 @@ def record_escalation(user_id: int, *, reason: str, source: str = "general") -> 
     )
 
 
-def user_message_rate_limited(
-    user_id: int, max_messages: int | None = None, window_seconds: int | None = None
-) -> bool:
-    """Return True if the user has sent at least `max_messages` within `window_seconds`.
+def record_csat(user_id: int, ticket_id: int, rating: int) -> None:
+    conn = _ensure_connection()
+    conn.execute(
+        "INSERT INTO csat_ratings (user_id, ticket_id, rating, created_at) VALUES (?, ?, ?, ?)",
+        (user_id, ticket_id, rating, _now()),
+    )
+    conn.commit()
 
-    Accepts keyword names expected by tests: `max_messages` and `window_seconds`.
-    """
+
+def _get_user_tier(user_id: int) -> str:
+    profile = get_user_profile(user_id)
+    if not profile:
+        return "anonymous"
+    if profile.get("message_count", 0) >= 5:
+        return "known"
+    return "anonymous"
+
+
+def _get_known_users() -> set[int]:
+    rows = (
+        _ensure_connection()
+        .execute("SELECT user_id FROM users WHERE message_count >= 5")
+        .fetchall()
+    )
+    return {int(row["user_id"]) for row in rows}
+
+
+def user_message_rate_limited(
+    user_id: int,
+    max_messages: int | None = None,
+    window_seconds: int | None = None,
+) -> bool:
+    tier = _get_user_tier(user_id)
+    tier_config = config.RATE_LIMIT_TIERS.get(tier, {})
+
     if max_messages is None:
-        max_messages = config.RATE_LIMIT_MAX_MESSAGES
+        max_messages = tier_config.get("max", config.RATE_LIMIT_MAX_MESSAGES)
     if window_seconds is None:
-        window_seconds = config.RATE_LIMIT_WINDOW_SECONDS
+        window_seconds = tier_config.get("window", config.RATE_LIMIT_WINDOW_SECONDS)
 
     since = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
     row = (
@@ -511,5 +545,20 @@ def count_support_tickets(*, status: str | None = None) -> int:
     return int(row["total"]) if row else 0
 
 
-# Note: do not auto-initialize at import time. Tests may set environment variables
-# (e.g., SUPPORTGENIE_DB_PATH) via pytest fixtures before the first DB access.
+def get_csat_stats() -> dict[str, float]:
+    rows = (
+        _ensure_connection()
+        .execute("SELECT rating FROM csat_ratings")
+        .fetchall()
+    )
+    if not rows:
+        return {"count": 0, "average": 0.0, "distribution": {}}
+    ratings = [r["rating"] for r in rows]
+    dist = {}
+    for r in ratings:
+        dist[str(r)] = dist.get(str(r), 0) + 1
+    return {
+        "count": len(ratings),
+        "average": round(sum(ratings) / len(ratings), 2),
+        "distribution": dist,
+    }

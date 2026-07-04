@@ -1,12 +1,6 @@
 """
 bot.py — NovaBuy Customer Support Bot
-Entry point. Registers all handlers and starts polling.
-
-Usage:
-    python bot.py
-
-Requirements:
-    Copy .env.example to .env and fill in your tokens.
+Entry point. Registers all handlers and starts polling or webhook.
 """
 
 import logging
@@ -44,6 +38,10 @@ from handlers.order_tracking import (
     cancel_tracking,
     WAITING_FOR_ORDER_ID,
 )
+from handlers.media import handle_photo, handle_voice
+from handlers.handoff import human_escalation, forward_from_support_group
+from handlers.clear import clear_command
+from handlers.csat import handle_csat
 from feedback import handle_feedback, feedback_keyboard
 from handlers.admin import (
     stats_command,
@@ -51,30 +49,25 @@ from handlers.admin import (
     inbox_command,
     ticket_command,
     resolve_ticket_command,
+    feedback_command,
 )
 from handlers.sentiment import analyze_sentiment
 from db import session_store
-from handlers.fallback import human_escalation
 
-# ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
-    format="%(asctime)s | %(levelname)-8s | %(name)s — %(message)s",
+    format="%(asctime)s | %(levelname)-8s | %(name)s \u2014 %(message)s",
     level=logging.INFO,
 )
 logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("chromadb").setLevel(logging.WARNING)
+logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
-# ── AI Free-text Handler ──────────────────────────────────────────────────────
 async def ai_message_handler(update: Update, context) -> None:
-    """
-    Handle any plain text message that isn't a command.
-    Sends a typing indicator, then streams the AI response.
-    """
     user_id = update.effective_user.id
     user_text = update.message.text
 
-    # Show typing indicator while AI thinks
     await update.message.chat.send_action("typing")
 
     session_store.upsert_user(
@@ -82,6 +75,12 @@ async def ai_message_handler(update: Update, context) -> None:
         username=update.effective_user.username,
         full_name=update.effective_user.full_name,
     )
+
+    if session_store.user_message_rate_limited(user_id):
+        await update.message.reply_text(
+            "⏳ You're sending messages too fast. Please slow down and try again in a moment."
+        )
+        return
 
     sentiment = analyze_sentiment(user_text)
     if sentiment.escalate:
@@ -97,18 +96,48 @@ async def ai_message_handler(update: Update, context) -> None:
     await placeholder.edit_text(reply, reply_markup=feedback_keyboard(source="ai-chat"))
 
 
-# ── Bot Setup ─────────────────────────────────────────────────────────────────
+async def csat_handler(update: Update, context) -> None:
+    await handle_csat(update, context)
+
+
+async def error_handler(update: Update, context) -> None:
+    logger.exception("Unhandled error: %s", context.error)
+
+
+async def post_init(application: Application) -> None:
+    if config.WEBHOOK_URL:
+        webhook_url = config.WEBHOOK_URL.rstrip("/") + "/webhook"
+        await application.bot.set_webhook(url=webhook_url)
+        logger.info("Webhook set to %s", webhook_url)
+
+    if config.NOTIFICATION_CHECK_INTERVAL > 0:
+        job_queue = application.job_queue
+        if job_queue:
+            job_queue.run_repeating(
+                check_order_updates,
+                interval=config.NOTIFICATION_CHECK_INTERVAL * 60,
+                first=config.NOTIFICATION_CHECK_INTERVAL * 60,
+            )
+            logger.info("Notification check scheduled every %d minutes", config.NOTIFICATION_CHECK_INTERVAL)
+
+
+async def check_order_updates(context) -> None:
+    logger.debug("Order update check running...")
+
+
 def main() -> None:
     config.validate_config()
 
-    # Initialize database
     session_store.initialize()
     logger.info("Database initialized: %s", session_store.DB_PATH)
 
-    app = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
+    app = (
+        Application.builder()
+        .token(config.TELEGRAM_BOT_TOKEN)
+        .post_init(post_init)
+        .build()
+    )
 
-    # ── Order tracking conversation ───────────────────────────────────────────
-    # This must be registered BEFORE the generic CallbackQueryHandler
     order_conv = ConversationHandler(
         entry_points=[
             CallbackQueryHandler(ask_for_order_id, pattern="^menu:track$"),
@@ -168,10 +197,11 @@ def main() -> None:
         per_message=False,
     )
 
-    # ── Register handlers (order matters!) ────────────────────────────────────
     app.add_handler(CommandHandler("start", start_handler))
     app.add_handler(CommandHandler("help", help_handler))
+    app.add_handler(CommandHandler("clear", clear_command))
     app.add_handler(CommandHandler("stats", stats_command))
+    app.add_handler(CommandHandler("feedback", feedback_command))
     app.add_handler(CommandHandler("inbox", inbox_command))
     app.add_handler(CommandHandler("ticket", ticket_command))
     app.add_handler(CommandHandler("resolve_ticket", resolve_ticket_command))
@@ -179,14 +209,39 @@ def main() -> None:
     app.add_handler(order_conv)
     app.add_handler(search_conv)
     app.add_handler(returns_conv)
-    app.add_handler(CallbackQueryHandler(menu_router))  # all other buttons
+    app.add_handler(CallbackQueryHandler(menu_router))
     app.add_handler(CallbackQueryHandler(handle_feedback, pattern="^feedback:"))
+    app.add_handler(CallbackQueryHandler(csat_handler, pattern="^csat:"))
+
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+
+    if config.SUPPORT_GROUP_CHAT_ID:
+        app.add_handler(
+            MessageHandler(
+                filters.TEXT & ~filters.COMMAND & filters.Chat(chat_id=config.SUPPORT_GROUP_CHAT_ID),
+                forward_from_support_group,
+            )
+        )
+
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_message_handler))
 
-    # ── Start ─────────────────────────────────────────────────────────────────
-    logger.info("SupportGenie Bot is starting...")
+    app.add_error_handler(error_handler)
+
+    logger.info("SupportGenie Bot starting...")
     logger.info("AI Model: %s", config.GROQ_MODEL)
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+    if config.WEBHOOK_URL:
+        logger.info("Mode: Webhook on port %d", config.WEBHOOK_PORT)
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=config.WEBHOOK_PORT,
+            webhook_url="/webhook",
+            secret_token=config.TELEGRAM_BOT_TOKEN,
+        )
+    else:
+        logger.info("Mode: Polling")
+        app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":

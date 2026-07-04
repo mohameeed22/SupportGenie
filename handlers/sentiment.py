@@ -1,9 +1,10 @@
-"""Lightweight sentiment detection for frustration and escalation."""
-
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 NEGATIVE_PATTERNS = {
     "angry": 2,
@@ -23,6 +24,10 @@ NEGATIVE_PATTERNS = {
     "chargeback": 3,
     "lawsuit": 4,
     "sue": 4,
+    "worst": 3,
+    "disappointed": 2,
+    "unacceptable": 3,
+    "never buying": 3,
 }
 
 POSITIVE_PATTERNS = {
@@ -34,6 +39,9 @@ POSITIVE_PATTERNS = {
     "fantastic": 2,
     "happy": 1,
     "amazing": 2,
+    "perfect": 2,
+    "satisfied": 2,
+    "helpful": 1,
 }
 
 
@@ -47,17 +55,30 @@ class SentimentResult:
 def analyze_sentiment(text: str) -> SentimentResult:
     lowered = text.lower()
     score = 0
-    # apply positive and negative lexicons
+
     for phrase, weight in POSITIVE_PATTERNS.items():
         if phrase in lowered:
             score += weight
     for phrase, weight in NEGATIVE_PATTERNS.items():
         if phrase in lowered:
             score -= weight
+
     if lowered.count("!") >= 2:
         score -= 1
-    if re.search(r"\b(no help|not helping|still waiting|already told you)\b", lowered):
+
+    frustration_patterns = [
+        r"\b(no help|not helping|still waiting|already told you)\b",
+        r"\b(waste|useless|horrible|awful)\b",
+        r"\b(complaint|unhappy|unacceptable)\b",
+    ]
+    for pattern in frustration_patterns:
+        if re.search(pattern, lowered):
+            score -= 2
+
+    ALL_CAPS_WORDS = sum(1 for word in lowered.split() if len(word) > 2 and word.isupper())
+    if ALL_CAPS_WORDS >= 3:
         score -= 2
+
     if score <= -6:
         label = "negative"
     elif score >= 1:
@@ -65,8 +86,8 @@ def analyze_sentiment(text: str) -> SentimentResult:
     else:
         label = "neutral"
 
-    # escalate only for very negative scores or explicit escalation keywords
     escalate = score <= -6 or any(
         term in lowered for term in ("human", "agent", "manager", "supervisor")
     )
+
     return SentimentResult(label=label, score=score, escalate=escalate)

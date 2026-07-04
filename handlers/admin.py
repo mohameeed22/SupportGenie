@@ -1,5 +1,3 @@
-"""Admin-only commands for stats and broadcast."""
-
 from __future__ import annotations
 
 from telegram import Update
@@ -37,6 +35,50 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     )
 
 
+async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_admin(update.effective_user.id):
+        await update.message.reply_text("This command is restricted to admins.")
+        return
+
+    limit = 10
+    if context.args:
+        try:
+            limit = int(context.args[0])
+        except ValueError:
+            pass
+
+    rows = session_store._ensure_connection().execute(
+        """
+        SELECT user_id, details, created_at
+        FROM analytics
+        WHERE event_type = 'feedback'
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+
+    if not rows:
+        await update.message.reply_text("No feedback recorded yet.")
+        return
+
+    lines = ["📋 *Recent Feedback*", ""]
+    for row in rows:
+        import json
+
+        details = {}
+        try:
+            details = json.loads(row["details"]) if row["details"] else {}
+        except (json.JSONDecodeError, TypeError):
+            pass
+        helpful = details.get("helpful", "unknown")
+        source = details.get("source", "general")
+        emoji = "👍" if helpful else "👎"
+        lines.append(f"{emoji} User `{row['user_id']}` via {source} — {row['created_at']}")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_admin(update.effective_user.id):
         await update.message.reply_text("This command is restricted to admins.")
@@ -54,16 +96,34 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
         return
 
+    tier = "all"
+    if context.args and context.args[0] in ("--known", "--anonymous"):
+        tier = context.args[0].lstrip("-")
+        message_text = " ".join(context.args[1:]).strip()
+
     user_ids = session_store.get_all_user_ids()
     sent = 0
-    for user_id in user_ids:
-        try:
-            await context.bot.send_message(chat_id=user_id, text=message_text)
-            sent += 1
-        except Exception:
-            continue
+    for uid in user_ids:
+        if tier == "known" and uid in session_store._get_known_users():
+            try:
+                await context.bot.send_message(chat_id=uid, text=message_text)
+                sent += 1
+            except Exception:
+                continue
+        elif tier == "anonymous" and uid not in session_store._get_known_users():
+            try:
+                await context.bot.send_message(chat_id=uid, text=message_text)
+                sent += 1
+            except Exception:
+                continue
+        elif tier == "all":
+            try:
+                await context.bot.send_message(chat_id=uid, text=message_text)
+                sent += 1
+            except Exception:
+                continue
 
-    await update.message.reply_text(f"Broadcast sent to {sent} users.")
+    await update.message.reply_text(f"Broadcast sent to {sent} users (tier: {tier}).")
 
 
 def _format_ticket(ticket: dict) -> str:
@@ -150,3 +210,36 @@ async def resolve_ticket_command(update: Update, context: ContextTypes.DEFAULT_T
         return
 
     await update.message.reply_text(f"Ticket #{ticket_id} marked as resolved.")
+
+    if config.CSAT_ENABLED:
+        user_id = ticket.get("user_id")
+        if user_id:
+            try:
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=(
+                        "✅ Your support ticket has been resolved!\n\n"
+                        "📝 *How was your experience?*\n"
+                        "We'd love your feedback to help us improve."
+                    ),
+                    parse_mode="Markdown",
+                    reply_markup=_csat_keyboard(ticket_id),
+                )
+            except Exception:
+                pass
+
+
+def _csat_keyboard(ticket_id: int):
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("😡 1", callback_data=f"csat:{ticket_id}:1"),
+                InlineKeyboardButton("😟 2", callback_data=f"csat:{ticket_id}:2"),
+                InlineKeyboardButton("😐 3", callback_data=f"csat:{ticket_id}:3"),
+                InlineKeyboardButton("😊 4", callback_data=f"csat:{ticket_id}:4"),
+                InlineKeyboardButton("🤩 5", callback_data=f"csat:{ticket_id}:5"),
+            ]
+        ]
+    )
